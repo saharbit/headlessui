@@ -1,6 +1,6 @@
 import * as React from 'react'
 import Head from 'next/head'
-import { Listbox } from '../../src/components/listbox/listbox' // TODO: Use `@headlessui/react`
+import { Listbox } from '@headlessui/react'
 
 import { classNames } from '../../src/utils/class-names'
 

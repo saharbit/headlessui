@@ -1,20 +1,7 @@
-import React from 'react'
-import { render } from '@testing-library/react'
-
-import { Listbox } from './listbox'
+import { defineComponent, ref, watchEffect } from 'vue'
+import { render } from '../../test-utils/vue-testing-library'
+import { Listbox, ListboxLabel, ListboxButton, ListboxItems, ListboxItem } from './listbox'
 import { suppressConsoleLogs } from '../../test-utils/suppress-console-logs'
-import {
-  click,
-  focus,
-  hover,
-  mouseMove,
-  press,
-  shift,
-  type,
-  unHover,
-  word,
-  Keys,
-} from '../../test-utils/interactions'
 import {
   assertActiveElement,
   assertActiveListboxItem,
@@ -33,26 +20,47 @@ import {
   getListboxLabel,
   ListboxState,
 } from '../../test-utils/accessibility-assertions'
+import {
+  click,
+  focus,
+  hover,
+  mouseMove,
+  press,
+  shift,
+  type,
+  unHover,
+  word,
+  Keys,
+} from '../../test-utils/interactions'
 
 jest.mock('../../hooks/use-id')
 
-beforeAll(() => {
-  jest.spyOn(window, 'requestAnimationFrame').mockImplementation(setImmediate as any)
-  jest.spyOn(window, 'cancelAnimationFrame').mockImplementation(clearImmediate as any)
-})
+function renderTemplate(input: string | Partial<Parameters<typeof defineComponent>[0]>) {
+  const defaultComponents = { Listbox, ListboxLabel, ListboxButton, ListboxItems, ListboxItem }
 
-afterAll(() => jest.restoreAllMocks())
+  if (typeof input === 'string') {
+    return render(defineComponent({ template: input, components: defaultComponents }))
+  }
+
+  return render(
+    defineComponent(
+      Object.assign({}, input, {
+        components: { ...defaultComponents, ...input.components },
+      }) as Parameters<typeof defineComponent>[0]
+    )
+  )
+}
 
 describe('safeguards', () => {
   it.each([
-    ['Listbox.Button', Listbox.Button],
-    ['Listbox.Label', Listbox.Label],
-    ['Listbox.Items', Listbox.Items],
-    ['Listbox.Item', Listbox.Item],
+    ['ListboxButton', ListboxButton],
+    ['ListboxLabel', ListboxLabel],
+    ['ListboxItems', ListboxItems],
+    ['ListboxItem', ListboxItem],
   ])(
     'should error when we are using a <%s /> without a parent <Listbox />',
     suppressConsoleLogs((name, Component) => {
-      expect(() => render(React.createElement(Component))).toThrowError(
+      expect(() => render(Component)).toThrowError(
         `<${name} /> is missing a parent <Listbox /> component.`
       )
     })
@@ -61,16 +69,19 @@ describe('safeguards', () => {
   it(
     'should be possible to render a Listbox without crashing',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="a">Item A</Listbox.Item>
-            <Listbox.Item value="b">Item B</Listbox.Item>
-            <Listbox.Item value="c">Item C</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="a">Item A</ListboxItem>
+              <ListboxItem value="b">Item B</ListboxItem>
+              <ListboxItem value="c">Item C</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       assertListboxButton({
         state: ListboxState.Closed,
@@ -86,22 +97,25 @@ describe('Rendering', () => {
     it(
       'should be possilbe to render a Listbox using a render prop',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            {({ open }) => (
-              <>
-                <Listbox.Button>Trigger</Listbox.Button>
-                {open && (
-                  <Listbox.Items>
-                    <Listbox.Item value="a">Item A</Listbox.Item>
-                    <Listbox.Item value="b">Item B</Listbox.Item>
-                    <Listbox.Item value="c">Item C</Listbox.Item>
-                  </Listbox.Items>
-                )}
-              </>
-            )}
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              {({ open }) => (
+                <>
+                  <ListboxButton>Trigger</ListboxButton>
+                  {open && (
+                    <ListboxItems>
+                      <ListboxItem value="a">Item A</ListboxItem>
+                      <ListboxItem value="b">Item B</ListboxItem>
+                      <ListboxItem value="c">Item C</ListboxItem>
+                    </ListboxItems>
+                  )}
+                </>
+              )}
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -120,21 +134,24 @@ describe('Rendering', () => {
     )
   })
 
-  describe('Listbox.Label', () => {
+  describe('ListboxLabel', () => {
     it(
-      'should be possible to render a Listbox.Label using a render prop',
+      'should be possible to render a ListboxLabel using a render prop',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Label>{JSON.stringify}</Listbox.Label>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxLabel v-slot="data">{{JSON.stringify(data)}}</ListboxLabel>
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -159,19 +176,22 @@ describe('Rendering', () => {
     )
 
     it(
-      'should be possible to render a Listbox.Label using a render prop and an `as` prop',
+      'should be possible to render a ListboxLabel using a render prop and an `as` prop',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Label as="p">{JSON.stringify}</Listbox.Label>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxLabel as="p" v-slot="data">{{JSON.stringify(data)}}</ListboxLabel>
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxLabel({
           attributes: { id: 'headlessui-listbox-label-1' },
@@ -191,20 +211,23 @@ describe('Rendering', () => {
     )
   })
 
-  describe('Listbox.Button', () => {
+  describe('ListboxButton', () => {
     it(
-      'should be possible to render a Listbox.Button using a render prop',
+      'should be possible to render a ListboxButton using a render prop',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>{JSON.stringify}</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton v-slot="data">{{JSON.stringify(data)}}</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -225,20 +248,21 @@ describe('Rendering', () => {
     )
 
     it(
-      'should be possible to render a Listbox.Button using a render prop and an `as` prop',
+      'should be possible to render a ListboxButton using a render prop and an `as` prop',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button as="div" role="button">
-              {JSON.stringify}
-            </Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton as="div" role="button" v-slot="data">{{JSON.stringify(data)}}</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -259,22 +283,24 @@ describe('Rendering', () => {
     )
 
     it(
-      'should be possible to render a Listbox.Button and a Listbox.Label and see them linked together',
+      'should be possible to render a ListboxButton and a ListboxLabel and see them linked together',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Label>Label</Listbox.Label>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxLabel>Label</ListboxLabel>
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
-        // TODO: Needed to make it similar to vue test implementation?
-        // await new Promise(requestAnimationFrame)
+        await new Promise(requestAnimationFrame)
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -286,22 +312,21 @@ describe('Rendering', () => {
     )
   })
 
-  describe('Listbox.Items', () => {
+  describe('ListboxItems', () => {
     it(
-      'should be possible to render Listbox.Items using a render prop',
+      'should be possible to render ListboxItems using a render prop',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              {data => (
-                <>
-                  <Listbox.Item value="a">{JSON.stringify(data)}</Listbox.Item>
-                </>
-              )}
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems v-slot="data">
+                <ListboxItem value="a">{{JSON.stringify(data)}}</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -323,35 +348,41 @@ describe('Rendering', () => {
       })
     )
 
-    it('should be possible to always render the Listbox.Items if we provide it a `static` prop', () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items static>
-            <Listbox.Item value="a">Item A</Listbox.Item>
-            <Listbox.Item value="b">Item B</Listbox.Item>
-            <Listbox.Item value="c">Item C</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+    it('should be possible to always render the ListboxItems if we provide it a `static` prop', () => {
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems static>
+              <ListboxItem value="a">Item A</ListboxItem>
+              <ListboxItem value="b">Item B</ListboxItem>
+              <ListboxItem value="c">Item C</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Let's verify that the Listbox is already there
       expect(getListbox()).not.toBe(null)
     })
   })
 
-  describe('Listbox.Item', () => {
+  describe('ListboxItem', () => {
     it(
-      'should be possible to render a Listbox.Item using a render prop',
+      'should be possible to render a ListboxItem using a render prop',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">{JSON.stringify}</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a" v-slot="data">{{JSON.stringify(data)}}</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -378,22 +409,25 @@ describe('Rendering composition', () => {
   it(
     'should be possible to conditionally render classNames (aka className can be a function?!)',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="a" className={bag => JSON.stringify(bag)}>
-              Item A
-            </Listbox.Item>
-            <Listbox.Item value="b" disabled className={bag => JSON.stringify(bag)}>
-              Item B
-            </Listbox.Item>
-            <Listbox.Item value="c" className="no-special-treatment">
-              Item C
-            </Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="a" :className="JSON.stringify">
+                Item A
+              </ListboxItem>
+              <ListboxItem value="b" disabled :className="JSON.stringify">
+                Item B
+              </ListboxItem>
+              <ListboxItem value="c" className="no-special-treatment">
+                Item C
+              </ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       assertListboxButton({
         state: ListboxState.Closed,
@@ -453,22 +487,25 @@ describe('Rendering composition', () => {
   it(
     'should be possible to swap the Listbox item with a button for example',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item as="button" value="a">
-              Item A
-            </Listbox.Item>
-            <Listbox.Item as="button" value="b">
-              Item B
-            </Listbox.Item>
-            <Listbox.Item as="button" value="c">
-              Item C
-            </Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem as="button" value="a">
+                Item A
+              </ListboxItem>
+              <ListboxItem as="button" value="b">
+                Item B
+              </ListboxItem>
+              <ListboxItem as="button" value="c">
+                Item C
+              </ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       assertListboxButton({
         state: ListboxState.Closed,
@@ -491,16 +528,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to open the listbox with Enter',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -537,16 +577,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to open the listbox with Enter, and focus the selected item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value="b" onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref('b') }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -582,12 +625,15 @@ describe('Keyboard interactions', () => {
     it(
       'should have no active listbox item when there are no listbox items at all',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items />
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems />
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListbox({ state: ListboxState.Closed })
 
@@ -606,18 +652,21 @@ describe('Keyboard interactions', () => {
     it(
       'should focus the first non disabled listbox item when opening with Enter',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -641,20 +690,23 @@ describe('Keyboard interactions', () => {
     it(
       'should focus the first non disabled listbox item when opening with Enter (jump over multiple disabled ones)',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -678,22 +730,25 @@ describe('Keyboard interactions', () => {
     it(
       'should have no active listbox item upon Enter key press, when there are no non-disabled listbox items',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item disabled value="c">
-                Item C
-              </Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem disabled value="c">
+                  Item C
+                </ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -714,16 +769,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to close the listbox with Enter when there is no active listboxitem',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -750,16 +808,25 @@ describe('Keyboard interactions', () => {
       'should be possible to close the listbox with Enter and choose the active listbox item',
       suppressConsoleLogs(async () => {
         const handleChange = jest.fn()
-        render(
-          <Listbox value={undefined} onChange={handleChange}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup() {
+            const value = ref(null)
+            watchEffect(() => {
+              if (value.value !== null) handleChange(value.value)
+            })
+            return { value }
+          },
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -795,16 +862,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to open the listbox with Space',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -838,16 +908,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to open the listbox with Space, and focus the selected item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value="b" onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref('b') }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -883,12 +956,15 @@ describe('Keyboard interactions', () => {
     it(
       'should have no active listbox item when there are no listbox items at all',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items />
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems />
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListbox({ state: ListboxState.Closed })
 
@@ -907,18 +983,21 @@ describe('Keyboard interactions', () => {
     it(
       'should focus the first non disabled listbox item when opening with Space',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -942,20 +1021,23 @@ describe('Keyboard interactions', () => {
     it(
       'should focus the first non disabled listbox item when opening with Space (jump over multiple disabled ones)',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -979,22 +1061,25 @@ describe('Keyboard interactions', () => {
     it(
       'should have no active listbox item upon Space key press, when there are no non-disabled listbox items',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item disabled value="c">
-                Item C
-              </Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem disabled value="c">
+                  Item C
+                </ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -1016,16 +1101,25 @@ describe('Keyboard interactions', () => {
       'should be possible to close the listbox with Space and choose the active listbox item',
       suppressConsoleLogs(async () => {
         const handleChange = jest.fn()
-        render(
-          <Listbox value={undefined} onChange={handleChange}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup() {
+            const value = ref(null)
+            watchEffect(() => {
+              if (value.value !== null) handleChange(value.value)
+            })
+            return { value }
+          },
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -1061,16 +1155,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to close an open listbox with Escape',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Focus the button
         getListboxButton()?.focus()
@@ -1101,16 +1198,19 @@ describe('Keyboard interactions', () => {
     it(
       'should focus trap when we use Tab',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -1152,16 +1252,19 @@ describe('Keyboard interactions', () => {
     it(
       'should focus trap when we use Shift+Tab',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -1205,16 +1308,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to open the listbox with ArrowDown',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -1250,16 +1356,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to open the listbox with ArrowDown, and focus the selected item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value="b" onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref('b') }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -1295,12 +1404,15 @@ describe('Keyboard interactions', () => {
     it(
       'should have no active listbox item when there are no listbox items at all',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items />
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems />
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListbox({ state: ListboxState.Closed })
 
@@ -1319,16 +1431,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use ArrowDown to navigate the listbox items',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -1365,18 +1480,21 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use ArrowDown to navigate the listbox items and skip the first disabled one',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -1405,20 +1523,23 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use ArrowDown to navigate the listbox items and jump to the first non-disabled one',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -1445,16 +1566,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to open the listbox with ArrowUp and the last item should be active',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -1490,16 +1614,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to open the listbox with ArrowUp, and focus the selected item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value="b" onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref('b') }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -1535,12 +1662,15 @@ describe('Keyboard interactions', () => {
     it(
       'should have no active listbox item when there are no listbox items at all',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items />
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems />
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListbox({ state: ListboxState.Closed })
 
@@ -1559,20 +1689,23 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use ArrowUp to navigate the listbox items and jump to the first non-disabled one',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item disabled value="c">
-                Item C
-              </Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem disabled value="c">
+                  Item C
+                </ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -1597,20 +1730,23 @@ describe('Keyboard interactions', () => {
     it(
       'should not be possible to navigate up or down if there is only a single non-disabled item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -1643,16 +1779,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use ArrowUp to navigate the listbox items',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         assertListboxButton({
           state: ListboxState.Closed,
@@ -1700,16 +1839,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use the End key to go to the last listbox item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Focus the button
         getListboxButton()?.focus()
@@ -1731,21 +1873,24 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use the End key to go to the last non disabled listbox item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item disabled value="c">
-                Item C
-              </Listbox.Item>
-              <Listbox.Item disabled value="d">
-                Item D
-              </Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem disabled value="c">
+                  Item C
+                </ListboxItem>
+                <ListboxItem disabled value="d">
+                  Item D
+                </ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Focus the button
         getListboxButton()?.focus()
@@ -1767,23 +1912,26 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use the End key to go to the first listbox item if that is the only non-disabled listbox item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item disabled value="c">
-                Item C
-              </Listbox.Item>
-              <Listbox.Item disabled value="d">
-                Item D
-              </Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem disabled value="c">
+                  Item C
+                </ListboxItem>
+                <ListboxItem disabled value="d">
+                  Item D
+                </ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Open listbox
         await click(getListboxButton())
@@ -1802,25 +1950,28 @@ describe('Keyboard interactions', () => {
     it(
       'should have no active listbox item upon End key press, when there are no non-disabled listbox items',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item disabled value="c">
-                Item C
-              </Listbox.Item>
-              <Listbox.Item disabled value="d">
-                Item D
-              </Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem disabled value="c">
+                  Item C
+                </ListboxItem>
+                <ListboxItem disabled value="d">
+                  Item D
+                </ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Open listbox
         await click(getListboxButton())
@@ -1840,16 +1991,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use the PageDown key to go to the last listbox item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Focus the button
         getListboxButton()?.focus()
@@ -1871,21 +2025,24 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use the PageDown key to go to the last non disabled listbox item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item disabled value="c">
-                Item C
-              </Listbox.Item>
-              <Listbox.Item disabled value="d">
-                Item D
-              </Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem disabled value="c">
+                  Item C
+                </ListboxItem>
+                <ListboxItem disabled value="d">
+                  Item D
+                </ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Focus the button
         getListboxButton()?.focus()
@@ -1907,23 +2064,26 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use the PageDown key to go to the first listbox item if that is the only non-disabled listbox item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item disabled value="c">
-                Item C
-              </Listbox.Item>
-              <Listbox.Item disabled value="d">
-                Item D
-              </Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem disabled value="c">
+                  Item C
+                </ListboxItem>
+                <ListboxItem disabled value="d">
+                  Item D
+                </ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Open listbox
         await click(getListboxButton())
@@ -1942,25 +2102,28 @@ describe('Keyboard interactions', () => {
     it(
       'should have no active listbox item upon PageDown key press, when there are no non-disabled listbox items',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item disabled value="c">
-                Item C
-              </Listbox.Item>
-              <Listbox.Item disabled value="d">
-                Item D
-              </Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem disabled value="c">
+                  Item C
+                </ListboxItem>
+                <ListboxItem disabled value="d">
+                  Item D
+                </ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Open listbox
         await click(getListboxButton())
@@ -1980,16 +2143,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use the Home key to go to the first listbox item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Focus the button
         getListboxButton()?.focus()
@@ -2011,21 +2177,24 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use the Home key to go to the first non disabled listbox item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-              <Listbox.Item value="d">Item D</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+                <ListboxItem value="d">Item D</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Open listbox
         await click(getListboxButton())
@@ -2046,23 +2215,26 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use the Home key to go to the last listbox item if that is the only non-disabled listbox item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item disabled value="c">
-                Item C
-              </Listbox.Item>
-              <Listbox.Item value="d">Item D</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem disabled value="c">
+                  Item C
+                </ListboxItem>
+                <ListboxItem value="d">Item D</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Open listbox
         await click(getListboxButton())
@@ -2081,25 +2253,28 @@ describe('Keyboard interactions', () => {
     it(
       'should have no active listbox item upon Home key press, when there are no non-disabled listbox items',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item disabled value="c">
-                Item C
-              </Listbox.Item>
-              <Listbox.Item disabled value="d">
-                Item D
-              </Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem disabled value="c">
+                  Item C
+                </ListboxItem>
+                <ListboxItem disabled value="d">
+                  Item D
+                </ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Open listbox
         await click(getListboxButton())
@@ -2119,16 +2294,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use the PageUp key to go to the first listbox item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="a">Item A</Listbox.Item>
-              <Listbox.Item value="b">Item B</Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="a">Item A</ListboxItem>
+                <ListboxItem value="b">Item B</ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Focus the button
         getListboxButton()?.focus()
@@ -2150,21 +2328,24 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use the PageUp key to go to the first non disabled listbox item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item value="c">Item C</Listbox.Item>
-              <Listbox.Item value="d">Item D</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem value="c">Item C</ListboxItem>
+                <ListboxItem value="d">Item D</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Open listbox
         await click(getListboxButton())
@@ -2185,23 +2366,26 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to use the PageUp key to go to the last listbox item if that is the only non-disabled listbox item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item disabled value="c">
-                Item C
-              </Listbox.Item>
-              <Listbox.Item value="d">Item D</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem disabled value="c">
+                  Item C
+                </ListboxItem>
+                <ListboxItem value="d">Item D</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Open listbox
         await click(getListboxButton())
@@ -2220,25 +2404,28 @@ describe('Keyboard interactions', () => {
     it(
       'should have no active listbox item upon PageUp key press, when there are no non-disabled listbox items',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item disabled value="a">
-                Item A
-              </Listbox.Item>
-              <Listbox.Item disabled value="b">
-                Item B
-              </Listbox.Item>
-              <Listbox.Item disabled value="c">
-                Item C
-              </Listbox.Item>
-              <Listbox.Item disabled value="d">
-                Item D
-              </Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem disabled value="a">
+                  Item A
+                </ListboxItem>
+                <ListboxItem disabled value="b">
+                  Item B
+                </ListboxItem>
+                <ListboxItem disabled value="c">
+                  Item C
+                </ListboxItem>
+                <ListboxItem disabled value="d">
+                  Item D
+                </ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Open listbox
         await click(getListboxButton())
@@ -2258,16 +2445,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to type a full word that has a perfect match',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="alice">alice</Listbox.Item>
-              <Listbox.Item value="bob">bob</Listbox.Item>
-              <Listbox.Item value="charlie">charlie</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="alice">alice</ListboxItem>
+                <ListboxItem value="bob">bob</ListboxItem>
+                <ListboxItem value="charlie">charlie</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Open listbox
         await click(getListboxButton())
@@ -2291,16 +2481,19 @@ describe('Keyboard interactions', () => {
     it(
       'should be possible to type a partial of a word',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="alice">alice</Listbox.Item>
-              <Listbox.Item value="bob">bob</Listbox.Item>
-              <Listbox.Item value="charlie">charlie</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="alice">alice</ListboxItem>
+                <ListboxItem value="bob">bob</ListboxItem>
+                <ListboxItem value="charlie">charlie</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Focus the button
         getListboxButton()?.focus()
@@ -2330,18 +2523,21 @@ describe('Keyboard interactions', () => {
     it(
       'should not be possible to search for a disabled item',
       suppressConsoleLogs(async () => {
-        render(
-          <Listbox value={undefined} onChange={console.log}>
-            <Listbox.Button>Trigger</Listbox.Button>
-            <Listbox.Items>
-              <Listbox.Item value="alice">alice</Listbox.Item>
-              <Listbox.Item disabled value="bob">
-                bob
-              </Listbox.Item>
-              <Listbox.Item value="charlie">charlie</Listbox.Item>
-            </Listbox.Items>
-          </Listbox>
-        )
+        renderTemplate({
+          template: `
+            <Listbox v-model="value">
+              <ListboxButton>Trigger</ListboxButton>
+              <ListboxItems>
+                <ListboxItem value="alice">alice</ListboxItem>
+                <ListboxItem disabled value="bob">
+                  bob
+                </ListboxItem>
+                <ListboxItem value="charlie">charlie</ListboxItem>
+              </ListboxItems>
+            </Listbox>
+          `,
+          setup: () => ({ value: ref(null) }),
+        })
 
         // Focus the button
         getListboxButton()?.focus()
@@ -2366,19 +2562,22 @@ describe('Keyboard interactions', () => {
 
 describe('Mouse interactions', () => {
   it(
-    'should focus the Listbox.Button when we click the Listbox.Label',
+    'should focus the ListboxButton when we click the ListboxLabel',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Label>Label</Listbox.Label>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="a">Item A</Listbox.Item>
-            <Listbox.Item value="b">Item B</Listbox.Item>
-            <Listbox.Item value="c">Item C</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxLabel>Label</ListboxLabel>
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="a">Item A</ListboxItem>
+              <ListboxItem value="b">Item B</ListboxItem>
+              <ListboxItem value="c">Item C</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Ensure the button is not focused yet
       assertActiveElement(document.body)
@@ -2394,16 +2593,19 @@ describe('Mouse interactions', () => {
   it(
     'should be possible to open a listbox on click',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="a">Item A</Listbox.Item>
-            <Listbox.Item value="b">Item B</Listbox.Item>
-            <Listbox.Item value="c">Item C</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="a">Item A</ListboxItem>
+              <ListboxItem value="b">Item B</ListboxItem>
+              <ListboxItem value="c">Item C</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       assertListboxButton({
         state: ListboxState.Closed,
@@ -2433,16 +2635,19 @@ describe('Mouse interactions', () => {
   it(
     'should be possible to open a listbox on click, and focus the selected item',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value="b" onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="a">Item A</Listbox.Item>
-            <Listbox.Item value="b">Item B</Listbox.Item>
-            <Listbox.Item value="c">Item C</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="a">Item A</ListboxItem>
+              <ListboxItem value="b">Item B</ListboxItem>
+              <ListboxItem value="c">Item C</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref('b') }),
+      })
 
       assertListboxButton({
         state: ListboxState.Closed,
@@ -2475,16 +2680,19 @@ describe('Mouse interactions', () => {
   it(
     'should be possible to close a listbox on click',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="a">Item A</Listbox.Item>
-            <Listbox.Item value="b">Item B</Listbox.Item>
-            <Listbox.Item value="c">Item C</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="a">Item A</ListboxItem>
+              <ListboxItem value="b">Item B</ListboxItem>
+              <ListboxItem value="c">Item C</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Open listbox
       await click(getListboxButton())
@@ -2502,16 +2710,19 @@ describe('Mouse interactions', () => {
   )
 
   it('should focus the listbox when you try to focus the button again (when the listbox is already open)', async () => {
-    render(
-      <Listbox value={undefined} onChange={console.log}>
-        <Listbox.Button>Trigger</Listbox.Button>
-        <Listbox.Items>
-          <Listbox.Item value="a">Item A</Listbox.Item>
-          <Listbox.Item value="b">Item B</Listbox.Item>
-          <Listbox.Item value="c">Item C</Listbox.Item>
-        </Listbox.Items>
-      </Listbox>
-    )
+    renderTemplate({
+      template: `
+        <Listbox v-model="value">
+          <ListboxButton>Trigger</ListboxButton>
+          <ListboxItems>
+            <ListboxItem value="a">Item A</ListboxItem>
+            <ListboxItem value="b">Item B</ListboxItem>
+            <ListboxItem value="c">Item C</ListboxItem>
+          </ListboxItems>
+        </Listbox>
+      `,
+      setup: () => ({ value: ref(null) }),
+    })
 
     // Open listbox
     await click(getListboxButton())
@@ -2529,16 +2740,19 @@ describe('Mouse interactions', () => {
   it(
     'should be a no-op when we click outside of a closed listbox',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="alice">alice</Listbox.Item>
-            <Listbox.Item value="bob">bob</Listbox.Item>
-            <Listbox.Item value="charlie">charlie</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="alice">alice</ListboxItem>
+              <ListboxItem value="bob">bob</ListboxItem>
+              <ListboxItem value="charlie">charlie</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Verify that the window is closed
       assertListbox({ state: ListboxState.Closed })
@@ -2554,16 +2768,19 @@ describe('Mouse interactions', () => {
   it(
     'should be possible to click outside of the listbox which should close the listbox',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="alice">alice</Listbox.Item>
-            <Listbox.Item value="bob">bob</Listbox.Item>
-            <Listbox.Item value="charlie">charlie</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="alice">alice</ListboxItem>
+              <ListboxItem value="bob">bob</ListboxItem>
+              <ListboxItem value="charlie">charlie</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Open listbox
       await click(getListboxButton())
@@ -2581,16 +2798,19 @@ describe('Mouse interactions', () => {
   it(
     'should be possible to click outside of the listbox which should close the listbox (even if we press the listbox button)',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="alice">alice</Listbox.Item>
-            <Listbox.Item value="bob">bob</Listbox.Item>
-            <Listbox.Item value="charlie">charlie</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="alice">alice</ListboxItem>
+              <ListboxItem value="bob">bob</ListboxItem>
+              <ListboxItem value="charlie">charlie</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Open listbox
       await click(getListboxButton())
@@ -2608,16 +2828,19 @@ describe('Mouse interactions', () => {
   it(
     'should be possible to hover an item and make it active',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="alice">alice</Listbox.Item>
-            <Listbox.Item value="bob">bob</Listbox.Item>
-            <Listbox.Item value="charlie">charlie</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="alice">alice</ListboxItem>
+              <ListboxItem value="bob">bob</ListboxItem>
+              <ListboxItem value="charlie">charlie</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Open listbox
       await click(getListboxButton())
@@ -2640,16 +2863,19 @@ describe('Mouse interactions', () => {
   it(
     'should make a listbox item active when you move the mouse over it',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="alice">alice</Listbox.Item>
-            <Listbox.Item value="bob">bob</Listbox.Item>
-            <Listbox.Item value="charlie">charlie</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="alice">alice</ListboxItem>
+              <ListboxItem value="bob">bob</ListboxItem>
+              <ListboxItem value="charlie">charlie</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Open listbox
       await click(getListboxButton())
@@ -2664,16 +2890,19 @@ describe('Mouse interactions', () => {
   it(
     'should be a no-op when we move the mouse and the listbox item is already active',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="alice">alice</Listbox.Item>
-            <Listbox.Item value="bob">bob</Listbox.Item>
-            <Listbox.Item value="charlie">charlie</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="alice">alice</ListboxItem>
+              <ListboxItem value="bob">bob</ListboxItem>
+              <ListboxItem value="charlie">charlie</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Open listbox
       await click(getListboxButton())
@@ -2694,18 +2923,21 @@ describe('Mouse interactions', () => {
   it(
     'should be a no-op when we move the mouse and the listbox item is disabled',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="alice">alice</Listbox.Item>
-            <Listbox.Item disabled value="bob">
-              bob
-            </Listbox.Item>
-            <Listbox.Item value="charlie">charlie</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="alice">alice</ListboxItem>
+              <ListboxItem disabled value="bob">
+                bob
+              </ListboxItem>
+              <ListboxItem value="charlie">charlie</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Open listbox
       await click(getListboxButton())
@@ -2720,18 +2952,21 @@ describe('Mouse interactions', () => {
   it(
     'should not be possible to hover an item that is disabled',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="alice">alice</Listbox.Item>
-            <Listbox.Item disabled value="bob">
-              bob
-            </Listbox.Item>
-            <Listbox.Item value="charlie">charlie</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="alice">alice</ListboxItem>
+              <ListboxItem disabled value="bob">
+                bob
+              </ListboxItem>
+              <ListboxItem value="charlie">charlie</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Open listbox
       await click(getListboxButton())
@@ -2749,16 +2984,19 @@ describe('Mouse interactions', () => {
   it(
     'should be possible to mouse leave an item and make it inactive',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="alice">alice</Listbox.Item>
-            <Listbox.Item value="bob">bob</Listbox.Item>
-            <Listbox.Item value="charlie">charlie</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="alice">alice</ListboxItem>
+              <ListboxItem value="bob">bob</ListboxItem>
+              <ListboxItem value="charlie">charlie</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Open listbox
       await click(getListboxButton())
@@ -2791,18 +3029,21 @@ describe('Mouse interactions', () => {
   it(
     'should be possible to mouse leave a disabled item and be a no-op',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="alice">alice</Listbox.Item>
-            <Listbox.Item disabled value="bob">
-              bob
-            </Listbox.Item>
-            <Listbox.Item value="charlie">charlie</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="alice">alice</ListboxItem>
+              <ListboxItem disabled value="bob">
+                bob
+              </ListboxItem>
+              <ListboxItem value="charlie">charlie</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Open listbox
       await click(getListboxButton())
@@ -2822,16 +3063,25 @@ describe('Mouse interactions', () => {
     'should be possible to click a listbox item, which closes the listbox',
     suppressConsoleLogs(async () => {
       const handleChange = jest.fn()
-      render(
-        <Listbox value={undefined} onChange={handleChange}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="alice">alice</Listbox.Item>
-            <Listbox.Item value="bob">bob</Listbox.Item>
-            <Listbox.Item value="charlie">charlie</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="alice">alice</ListboxItem>
+              <ListboxItem value="bob">bob</ListboxItem>
+              <ListboxItem value="charlie">charlie</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup() {
+          const value = ref(null)
+          watchEffect(() => {
+            if (value.value !== null) handleChange(value.value)
+          })
+          return { value }
+        },
+      })
 
       // Open listbox
       await click(getListboxButton())
@@ -2852,18 +3102,27 @@ describe('Mouse interactions', () => {
     'should be possible to click a disabled listbox item, which is a no-op',
     suppressConsoleLogs(async () => {
       const handleChange = jest.fn()
-      render(
-        <Listbox value={undefined} onChange={handleChange}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="alice">alice</Listbox.Item>
-            <Listbox.Item disabled value="bob">
-              bob
-            </Listbox.Item>
-            <Listbox.Item value="charlie">charlie</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="alice">alice</ListboxItem>
+              <ListboxItem disabled value="bob">
+                bob
+              </ListboxItem>
+              <ListboxItem value="charlie">charlie</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup() {
+          const value = ref(null)
+          watchEffect(() => {
+            if (value.value !== null) handleChange(value.value)
+          })
+          return { value }
+        },
+      })
 
       // Open listbox
       await click(getListboxButton())
@@ -2883,16 +3142,19 @@ describe('Mouse interactions', () => {
   it(
     'should be possible focus a listbox item, so that it becomes active',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="alice">alice</Listbox.Item>
-            <Listbox.Item value="bob">bob</Listbox.Item>
-            <Listbox.Item value="charlie">charlie</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="alice">alice</ListboxItem>
+              <ListboxItem value="bob">bob</ListboxItem>
+              <ListboxItem value="charlie">charlie</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Open listbox
       await click(getListboxButton())
@@ -2913,18 +3175,21 @@ describe('Mouse interactions', () => {
   it(
     'should not be possible to focus a listbox item which is disabled',
     suppressConsoleLogs(async () => {
-      render(
-        <Listbox value={undefined} onChange={console.log}>
-          <Listbox.Button>Trigger</Listbox.Button>
-          <Listbox.Items>
-            <Listbox.Item value="alice">alice</Listbox.Item>
-            <Listbox.Item disabled value="bob">
-              bob
-            </Listbox.Item>
-            <Listbox.Item value="charlie">charlie</Listbox.Item>
-          </Listbox.Items>
-        </Listbox>
-      )
+      renderTemplate({
+        template: `
+          <Listbox v-model="value">
+            <ListboxButton>Trigger</ListboxButton>
+            <ListboxItems>
+              <ListboxItem value="alice">alice</ListboxItem>
+              <ListboxItem disabled value="bob">
+                bob
+              </ListboxItem>
+              <ListboxItem value="charlie">charlie</ListboxItem>
+            </ListboxItems>
+          </Listbox>
+        `,
+        setup: () => ({ value: ref(null) }),
+      })
 
       // Open listbox
       await click(getListboxButton())

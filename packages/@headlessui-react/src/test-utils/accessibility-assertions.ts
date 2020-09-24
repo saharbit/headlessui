@@ -337,6 +337,21 @@ export function assertListboxButtonLinkedWithListbox(
   }
 }
 
+export function assertListboxLabelLinkedWithListbox(
+  label = getListboxLabel(),
+  listbox = getListbox()
+) {
+  try {
+    if (label === null) return expect(label).not.toBe(null)
+    if (listbox === null) return expect(listbox).not.toBe(null)
+
+    expect(listbox).toHaveAttribute('aria-labelledby', label.getAttribute('id'))
+  } catch (err) {
+    Error.captureStackTrace(err, assertListboxLabelLinkedWithListbox)
+    throw err
+  }
+}
+
 export function assertListboxButtonLinkedWithListboxLabel(
   button = getListboxButton(),
   label = getListboxLabel()

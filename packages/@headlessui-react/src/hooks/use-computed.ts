@@ -7,6 +7,6 @@ export function useComputed<T>(cb: () => T, dependencies: React.DependencyList) 
   useIsoMorphicEffect(() => {
     cbRef.current = cb
   }, [cb])
-  useIsoMorphicEffect(() => setValue(cbRef.current), [...dependencies, cbRef, setValue])
+  useIsoMorphicEffect(() => setValue(cbRef.current), [cbRef, setValue, ...dependencies])
   return value
 }

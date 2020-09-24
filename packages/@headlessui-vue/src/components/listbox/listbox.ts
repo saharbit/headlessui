@@ -15,7 +15,7 @@ import { render } from '../../utils/render'
 import { useId } from '../../hooks/use-id'
 import { Keys } from '../../keyboard'
 
-enum MenuStates {
+enum ListboxStates {
   Open,
   Closed,
 }
@@ -29,45 +29,56 @@ enum Focus {
   Nothing,
 }
 
-type MenuItemDataRef = Ref<{ textValue: string; disabled: boolean }>
+type ListboxItemDataRef = Ref<{ textValue: string; disabled: boolean; value: unknown }>
 type StateDefinition = {
   // State
-  menuState: Ref<MenuStates>
+  listboxState: Ref<ListboxStates>
+  propsRef: Ref<{ value: unknown }>
+  labelRef: Ref<HTMLLabelElement | null>
   buttonRef: Ref<HTMLButtonElement | null>
   itemsRef: Ref<HTMLDivElement | null>
-  items: Ref<{ id: string; dataRef: MenuItemDataRef }[]>
+  items: Ref<{ id: string; dataRef: ListboxItemDataRef }[]>
   searchQuery: Ref<string>
   activeItemIndex: Ref<number | null>
 
   // State mutators
-  toggleMenu(): void
-  closeMenu(): void
-  openMenu(): void
+  toggleListbox(): void
+  closeListbox(): void
+  openListbox(): void
   goToItem(focus: Focus, id?: string): void
   search(value: string): void
   clearSearch(): void
-  registerItem(id: string, dataRef: MenuItemDataRef): void
+  registerItem(id: string, dataRef: ListboxItemDataRef): void
   unregisterItem(id: string): void
+  select(value: unknown): void
 }
 
-const MenuContext = Symbol('MenuContext') as InjectionKey<StateDefinition>
+const ListboxContext = Symbol('ListboxContext') as InjectionKey<StateDefinition>
 
-function useMenuContext(component: string) {
-  const context = inject(MenuContext)
+function useListboxContext(component: string) {
+  const context = inject(ListboxContext)
 
   if (context === undefined) {
-    const err = new Error(`<${component} /> is missing a parent <Menu /> component.`)
-    if (Error.captureStackTrace) Error.captureStackTrace(err, useMenuContext)
+    const err = new Error(`<${component} /> is missing a parent <Listbox /> component.`)
+    if (Error.captureStackTrace) Error.captureStackTrace(err, useListboxContext)
     throw err
   }
 
   return context
 }
 
-export const Menu = defineComponent({
-  props: { as: { type: [Object, String], default: 'template' } },
-  setup(props, { slots, attrs }) {
-    const menuState = ref<StateDefinition['menuState']['value']>(MenuStates.Closed)
+// ---
+
+export const Listbox = defineComponent({
+  props: {
+    as: { type: [Object, String], default: 'template' },
+    modelValue: { type: [Object, String], default: null },
+  },
+  setup(props, { slots, attrs, emit }) {
+    const { modelValue: value, ...passThroughProps } = props
+    const listboxState = ref<StateDefinition['listboxState']['value']>(ListboxStates.Closed)
+    const propsRef = ref<StateDefinition['propsRef']['value']>({ value })
+    const labelRef = ref<StateDefinition['labelRef']['value']>(null)
     const buttonRef = ref<StateDefinition['buttonRef']['value']>(null)
     const itemsRef = ref<StateDefinition['itemsRef']['value']>(null)
     const items = ref<StateDefinition['items']['value']>([])
@@ -116,20 +127,22 @@ export const Menu = defineComponent({
     }
 
     const api = {
-      menuState,
+      listboxState,
+      propsRef,
+      labelRef,
       buttonRef,
       itemsRef,
       items,
       searchQuery,
       activeItemIndex,
-      toggleMenu() {
-        menuState.value = match(menuState.value, {
-          [MenuStates.Closed]: MenuStates.Open,
-          [MenuStates.Open]: MenuStates.Closed,
+      toggleListbox() {
+        listboxState.value = match(listboxState.value, {
+          [ListboxStates.Closed]: ListboxStates.Open,
+          [ListboxStates.Open]: ListboxStates.Closed,
         })
       },
-      closeMenu: () => (menuState.value = MenuStates.Closed),
-      openMenu: () => (menuState.value = MenuStates.Open),
+      closeListbox: () => (listboxState.value = ListboxStates.Closed),
+      openListbox: () => (listboxState.value = ListboxStates.Open),
       goToItem(focus: Focus, id?: string) {
         const nextActiveItemIndex = calculateActiveItemIndex(focus, id)
         if (searchQuery.value === '' && activeItemIndex.value === nextActiveItemIndex) return
@@ -140,7 +153,9 @@ export const Menu = defineComponent({
         searchQuery.value += value
 
         const match = items.value.findIndex(
-          item => item.dataRef.textValue.startsWith(searchQuery.value) && !item.dataRef.disabled
+          item =>
+            !item.dataRef.disabled &&
+            item.dataRef.textValue.replace(/\s*/g, '').startsWith(searchQuery.value)
         )
 
         if (match === -1 || match === activeItemIndex.value) {
@@ -152,7 +167,7 @@ export const Menu = defineComponent({
       clearSearch() {
         searchQuery.value = ''
       },
-      registerItem(id: string, dataRef: MenuItemDataRef) {
+      registerItem(id: string, dataRef: ListboxItemDataRef) {
         // @ts-expect-error The expected type comes from property 'dataRef' which is declared here on type '{ id: string; dataRef: { textValue: string; disabled: boolean; }; }'
         items.value.push({ id, dataRef })
       },
@@ -172,15 +187,18 @@ export const Menu = defineComponent({
           return nextItems.indexOf(currentActiveItem)
         })()
       },
+      select(value: unknown) {
+        emit('update:modelValue', value)
+      },
     }
 
     onMounted(() => {
       function handler(event: PointerEvent) {
         if (event.defaultPrevented) return
-        if (menuState.value !== MenuStates.Open) return
+        if (listboxState.value !== ListboxStates.Open) return
 
         if (!itemsRef.value?.contains(event.target as HTMLElement)) {
-          api.closeMenu()
+          api.closeListbox()
           nextTick(() => buttonRef.value?.focus())
         }
       }
@@ -190,30 +208,71 @@ export const Menu = defineComponent({
     })
 
     // @ts-expect-error Types of property 'dataRef' are incompatible.
-    provide(MenuContext, api)
+    provide(ListboxContext, api)
 
     return () => {
-      const slot = { open: menuState.value === MenuStates.Open }
-      return render({ props, slot, slots, attrs })
+      const slot = { open: listboxState.value === ListboxStates.Open }
+      return render({ props: passThroughProps, slot, slots, attrs })
     }
   },
 })
 
-export const MenuButton = defineComponent({
+// ---
+
+export const ListboxLabel = defineComponent({
+  props: { as: { type: [Object, String], default: 'label' } },
+  render() {
+    const api = useListboxContext('ListboxLabel')
+
+    const slot = { open: api.listboxState.value === ListboxStates.Open }
+    const propsWeControl = {
+      id: this.id,
+      ref: 'el',
+      onPointerUp: this.handlePointerUp,
+    }
+
+    return render({
+      props: { ...this.$props, ...propsWeControl },
+      slot,
+      attrs: this.$attrs,
+      slots: this.$slots,
+    })
+  },
+  setup() {
+    const api = useListboxContext('ListboxLabel')
+    const id = `headlessui-listbox-label-${useId()}`
+
+    return {
+      id,
+      el: api.labelRef,
+      handlePointerUp() {
+        api.buttonRef.value?.focus()
+      },
+    }
+  },
+})
+
+// ---
+
+export const ListboxButton = defineComponent({
   props: { as: { type: [Object, String], default: 'button' } },
   render() {
-    const api = useMenuContext('MenuButton')
+    const api = useListboxContext('ListboxButton')
 
-    const slot = { open: api.menuState.value === MenuStates.Open }
+    const slot = { open: api.listboxState.value === ListboxStates.Open, focused: this.focused }
     const propsWeControl = {
       ref: 'el',
       id: this.id,
       type: 'button',
       'aria-haspopup': true,
       'aria-controls': api.itemsRef.value?.id,
-      'aria-expanded': api.menuState.value === MenuStates.Open ? true : undefined,
+      'aria-expanded': api.listboxState.value === ListboxStates.Open ? true : undefined,
+      'aria-labelledby': api.labelRef.value
+        ? [api.labelRef.value.id, this.id].join(' ')
+        : undefined,
       onKeyDown: this.handleKeyDown,
       onFocus: this.handleFocus,
+      onBlur: this.handleBlur,
       onPointerUp: this.handlePointerUp,
       onPointerDown: this.handlePointerDown,
     }
@@ -226,8 +285,9 @@ export const MenuButton = defineComponent({
     })
   },
   setup() {
-    const api = useMenuContext('MenuButton')
-    const id = `headlessui-menu-button-${useId()}`
+    const api = useListboxContext('ListboxButton')
+    const id = `headlessui-listbox-button-${useId()}`
+    const focused = ref(false)
 
     function handleKeyDown(event: KeyboardEvent) {
       switch (event.key) {
@@ -237,73 +297,82 @@ export const MenuButton = defineComponent({
         case Keys.Enter:
         case Keys.ArrowDown:
           event.preventDefault()
-          api.openMenu()
+          api.openListbox()
           nextTick(() => {
             api.itemsRef.value?.focus()
-            api.goToItem(Focus.FirstItem)
+            if (!api.propsRef.value.value) api.goToItem(Focus.FirstItem)
           })
           break
 
         case Keys.ArrowUp:
           event.preventDefault()
-          api.openMenu()
+          api.openListbox()
           nextTick(() => {
             api.itemsRef.value?.focus()
-            api.goToItem(Focus.LastItem)
+            if (!api.propsRef.value.value) api.goToItem(Focus.LastItem)
           })
           break
       }
     }
 
     function handlePointerDown(event: PointerEvent) {
-      // We have a `pointerdown` event listener in the menu for the 'outside click', so we just want
+      // We have a `pointerdown` event listener in the listbox for the 'outside click', so we just want
       // to prevent going there if we happen to click this button.
       event.preventDefault()
     }
 
     function handlePointerUp() {
-      api.toggleMenu()
+      api.toggleListbox()
       nextTick(() => api.itemsRef.value?.focus())
     }
 
     function handleFocus() {
-      if (api.menuState.value === MenuStates.Open) api.itemsRef.value?.focus()
+      if (api.listboxState.value === ListboxStates.Open) return api.itemsRef.value?.focus()
+      focused.value = true
+    }
+
+    function handleBlur() {
+      focused.value = false
     }
 
     return {
       id,
       el: api.buttonRef,
+      focused,
       handleKeyDown,
       handlePointerDown,
       handlePointerUp,
       handleFocus,
+      handleBlur,
     }
   },
 })
 
-export const MenuItems = defineComponent({
+// ---
+
+export const ListboxItems = defineComponent({
   props: {
-    as: { type: [Object, String], default: 'div' },
+    as: { type: [Object, String], default: 'ul' },
     static: { type: Boolean, default: false },
   },
   render() {
-    const api = useMenuContext('MenuItems')
+    const api = useListboxContext('ListboxItems')
 
     // `static` is a reserved keyword, therefore aliasing it...
     const { static: isStatic, ...passThroughProps } = this.$props
 
-    if (!isStatic && api.menuState.value === MenuStates.Closed) return null
+    if (!isStatic && api.listboxState.value === ListboxStates.Closed) return null
 
-    const slot = { open: api.menuState.value === MenuStates.Open }
+    const slot = { open: api.listboxState.value === ListboxStates.Open }
     const propsWeControl = {
       'aria-activedescendant':
         api.activeItemIndex.value === null
           ? undefined
           : api.items.value[api.activeItemIndex.value]?.id,
-      'aria-labelledby': api.buttonRef.value?.id,
+      'aria-labelledby': api.labelRef.value?.id ?? api.buttonRef.value?.id,
       id: this.id,
       onKeyDown: this.handleKeyDown,
-      role: 'menu',
+      role: 'listbox',
       tabIndex: 0,
       ref: 'el',
     }
@@ -316,8 +385,8 @@ export const MenuItems = defineComponent({
     })
   },
   setup() {
-    const api = useMenuContext('MenuItems')
-    const id = `headlessui-menu-items-${useId()}`
+    const api = useListboxContext('ListboxItems')
+    const id = `headlessui-listbox-items-${useId()}`
     const searchDebounce = ref<ReturnType<typeof setTimeout> | null>(null)
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -326,11 +395,12 @@ export const MenuItems = defineComponent({
       switch (event.key) {
         // Ref: https://www.w3.org/TR/wai-aria-practices-1.2/#keyboard-interaction-12
 
+        case Keys.Space:
         case Keys.Enter:
-          api.closeMenu()
+          api.closeListbox()
           if (api.activeItemIndex.value !== null) {
-            const { id } = api.items.value[api.activeItemIndex.value]
-            document.getElementById(id)?.click()
+            const { dataRef } = api.items.value[api.activeItemIndex.value]
+            api.select(dataRef.value)
             nextTick(() => api.buttonRef.value?.focus())
           }
           break
@@ -350,7 +420,7 @@ export const MenuItems = defineComponent({
           return api.goToItem(Focus.LastItem)
 
         case Keys.Escape:
-          api.closeMenu()
+          api.closeListbox()
           nextTick(() => api.buttonRef.value?.focus())
           break
 
@@ -374,26 +444,27 @@ export const MenuItems = defineComponent({
   },
 })
 
-export const MenuItem = defineComponent({
+export const ListboxItem = defineComponent({
   props: {
-    as: { type: [Object, String], default: 'template' },
+    as: { type: [Object, String], default: 'li' },
+    value: { type: [Object, String], default: null },
     disabled: { type: Boolean, default: false },
     class: { type: [String, Function], required: false },
     className: { type: [String, Function], required: false },
-    onClick: { type: Function, required: false },
   },
   setup(props, { slots, attrs }) {
-    const api = useMenuContext('MenuItem')
-    const id = `headlessui-menu-item-${useId()}`
-    const { disabled, class: defaultClass, className = defaultClass } = props
+    const api = useListboxContext('ListboxItem')
+    const id = `headlessui-listbox-item-${useId()}`
+    const { disabled, class: defaultClass, className = defaultClass, value } = props
 
     const active = computed(() => {
       return api.activeItemIndex.value !== null
         ? api.items.value[api.activeItemIndex.value].id === id
         : false
     })
+    const selected = computed(() => api.propsRef.value.value === value)
 
-    const dataRef = ref<MenuItemDataRef['value']>({ disabled: disabled, textValue: '' })
+    const dataRef = ref<ListboxItemDataRef['value']>({ disabled, value, textValue: '' })
     onMounted(() => {
       const textValue = document
         .getElementById(id)
@@ -404,6 +475,12 @@ export const MenuItem = defineComponent({
 
     onMounted(() => api.registerItem(id, dataRef))
     onUnmounted(() => api.unregisterItem(id))
+
+    onMounted(() => {
+      if (!selected.value) return
+      api.goToItem(Focus.SpecificItem, id)
+      document.getElementById(id)?.focus?.()
+    })
 
     function handlePointerEnter() {
       if (disabled) return
@@ -429,25 +506,21 @@ export const MenuItem = defineComponent({
     function handlePointerUp(event: PointerEvent) {
       if (disabled) return
       event.preventDefault()
-      api.closeMenu()
+      api.select(value)
+      api.closeListbox()
       nextTick(() => api.buttonRef.value?.focus())
     }
 
-    function handleClick(event: MouseEvent) {
-      if (disabled) return event.preventDefault()
-      if (props.onClick) return props.onClick(event)
-    }
-
     return () => {
-      const slot = { active: active.value, disabled }
+      const slot = { active: active.value, selected: selected.value, disabled }
       const propsWeControl = {
         id,
-        role: 'menuitem',
+        role: 'option',
         tabIndex: -1,
         class: resolvePropValue(className, slot),
         disabled: disabled === true ? disabled : undefined,
         'aria-disabled': disabled === true ? disabled : undefined,
-        onClick: handleClick,
+        'aria-selected': selected.value === true ? selected.value : undefined,
         onFocus: handleFocus,
         onMouseMove: handleMouseMove,
         onPointerEnter: handlePointerEnter,
@@ -464,6 +537,8 @@ export const MenuItem = defineComponent({
     }
   },
 })
+
+// ---
 
 function resolvePropValue<TProperty, TBag>(property: TProperty, bag: TBag) {
   if (property === undefined) return undefined

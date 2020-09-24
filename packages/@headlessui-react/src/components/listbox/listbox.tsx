@@ -327,14 +327,15 @@ const Button = forwardRefWithAs(function Button<
   }, [dispatch, d, state])
 
   const handleFocus = React.useCallback(() => {
-    if (state.listboxState === ListboxStates.Open) state.itemsRef.current?.focus()
+    if (state.listboxState === ListboxStates.Open) return state.itemsRef.current?.focus()
     setFocused(true)
   }, [state, setFocused])
 
   const handleBlur = React.useCallback(() => setFocused(false), [setFocused])
   const labelledby = useComputed(() => {
-    return state.labelRef.current?.id ? [state.labelRef.current?.id, id].join(' ') : undefined
-  }, [state.labelRef, id])
+    if (!state.labelRef.current) return undefined
+    return [state.labelRef.current.id, id].join(' ')
+  }, [state.labelRef.current, id])
 
   const propsBag = React.useMemo<ButtonRenderPropArg>(
     () => ({ open: state.listboxState === ListboxStates.Open, focused }),
@@ -445,21 +446,17 @@ const Items = forwardRefWithAs(function Items<
           break
 
         case Keys.ArrowDown:
-          event.preventDefault()
           return dispatch({ type: ActionTypes.GoToItem, focus: Focus.NextItem })
 
         case Keys.ArrowUp:
-          event.preventDefault()
           return dispatch({ type: ActionTypes.GoToItem, focus: Focus.PreviousItem })
 
         case Keys.Home:
         case Keys.PageUp:
-          event.preventDefault()
           return dispatch({ type: ActionTypes.GoToItem, focus: Focus.FirstItem })
 
         case Keys.End:
         case Keys.PageDown:
-          event.preventDefault()
           return dispatch({ type: ActionTypes.GoToItem, focus: Focus.LastItem })
 
         case Keys.Escape:
@@ -480,6 +477,11 @@ const Items = forwardRefWithAs(function Items<
     [d, dispatch, searchDisposables, state]
   )
 
+  const labelledby = useComputed(() => state.labelRef.current?.id ?? state.buttonRef.current?.id, [
+    state.labelRef.current,
+    state.buttonRef.current,
+  ])
+
   const propsBag = React.useMemo<ItemsRenderPropArg>(
     () => ({ open: state.listboxState === ListboxStates.Open }),
     [state]
@@ -487,9 +489,7 @@ const Items = forwardRefWithAs(function Items<
   const propsWeControl = {
     'aria-activedescendant':
       state.activeItemIndex === null ? undefined : state.items[state.activeItemIndex]?.id,
-    'aria-labelledby': state.labelRef.current?.id
-      ? state.labelRef.current.id
-      : state.buttonRef.current?.id,
+    'aria-labelledby': labelledby,
     id,
     onKeyDown: handleKeyDown,
     role: 'listbox',
@@ -581,21 +581,14 @@ function Item<TTag extends React.ElementType = typeof DEFAULT_ITEM_TAG, TType = 
   ])
 
   useIsoMorphicEffect(() => {
-    // TODO: Detect where the "active" is coming from. Keybaord event -> scroll; Mouseevent -> do not scroll;
-    // TODO: Do the same for the selecetd item?
-    if (active) document.getElementById(id)?.scrollIntoView?.()
-  }, [active])
-
-  useIsoMorphicEffect(() => {
     dispatch({ type: ActionTypes.RegisterItem, id, dataRef: bag })
     return () => dispatch({ type: ActionTypes.UnregisterItem, id })
   }, [bag, id])
 
   useIsoMorphicEffect(() => {
-    if (selected) {
-      dispatch({ type: ActionTypes.GoToItem, focus: Focus.SpecificItem, id })
-      document.getElementById(id)?.scrollIntoView?.()
-    }
+    if (!selected) return
+    dispatch({ type: ActionTypes.GoToItem, focus: Focus.SpecificItem, id })
+    document.getElementById(id)?.focus?.()
   }, [])
 
   const handlePointerEnter = React.useCallback(() => {
